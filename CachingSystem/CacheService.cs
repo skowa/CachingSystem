@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 
 namespace CachingSystem
@@ -10,32 +8,20 @@ namespace CachingSystem
     /// </summary>
     public class CacheService
     {
-        private readonly IDictionary<string, CacheItem> _cache;
+        private readonly ICacheItemsStorage _cache;
 
         private readonly Timer _timer;
 
-        private readonly int _periodOfChecking = 7000;
-
-        /// <summary>
-        /// Initializes a new instance of <see cref="CacheService"/>.
-        /// </summary>
-        public CacheService() : this(new Dictionary<string, object>(), new TimeSpan(0, 0, 0)) { }
+        private readonly int _periodOfChecking = 30000;
 
         /// <summary>
         /// Initializes a new instance of <see cref="CacheService"/>.
         /// </summary>
         /// <param name="cache"> The items to be stored in the cache. </param>
-        /// <param name="expirationTime"> The expiration time of items from <paramref name="cache"/>. </param>
         /// <exception cref="ArgumentNullException"> Thrown when <paramref name="cache"/> is null. </exception>
-        public CacheService(IDictionary<string, object> cache, TimeSpan expirationTime)
+        public CacheService(ICacheItemsStorage cache)
         {
-            if (cache == null)
-            {
-                throw new ArgumentNullException($"{nameof(cache)} is null");
-            }
-
-            _cache = cache.ToDictionary(pair => pair.Key,
-                pair => new CacheItem(pair.Value, DateTime.UtcNow + expirationTime));
+            _cache = cache ?? throw new ArgumentNullException($"{nameof(cache)} is null");
             _timer = new Timer(o => OnTimeIsOver(), null, 0, _periodOfChecking);
         }
 
@@ -62,18 +48,19 @@ namespace CachingSystem
                 throw new ArgumentNullException($"{nameof(value)} is null");
             }
 
-            if (_cache.ContainsKey(key))
+            CacheItem cacheItem = _cache.Get(key);
+            if (cacheItem != null)
             {
-                if (_cache[key].IsAlive)
+                if (cacheItem.IsAlive)
                 {
                     throw new InvalidOperationException($"The key {key} is already in the cache");
                 }
 
-                _cache[key] = new CacheItem(value, DateTime.UtcNow + expirationTime);
+                _cache.ChangeValue(key, value, expirationTime);
                 return;
             }
             
-            _cache.Add(key, new CacheItem(value, DateTime.UtcNow + expirationTime));
+            _cache.Add(key, value, expirationTime);
         }
 
         /// <summary>
@@ -90,21 +77,13 @@ namespace CachingSystem
                 throw new ArgumentException($"{nameof(key)} is invalid");
             }
 
-            _cache.TryGetValue(key, out CacheItem cacheItem);
+            CacheItem cacheItem = _cache.Get(key);
 
             return cacheItem != null && cacheItem.IsAlive
                 ? cacheItem.Value
                 : throw new InvalidOperationException($"The item with key {key} does not exist");
         }
 
-        private void OnTimeIsOver()
-        {
-            List<string> keysToRemove = _cache.Where(pair => !pair.Value.IsAlive).Select(pair => pair.Key).ToList();
-            
-            foreach (string key in keysToRemove)
-            {
-                _cache.Remove(key);
-            }
-        }
+        private void OnTimeIsOver() => _cache.ClearExpired();
     }
 }

@@ -2,7 +2,7 @@
 
 namespace CachingSystem
 {
-    public interface ICacheService
+    public interface ICacheItemsStorage
     {
         /// <summary>
         /// The method that adds object to the cache.
@@ -17,6 +17,19 @@ namespace CachingSystem
         /// </summary>
         /// <param name="key"> The key by which object is to be gotten. </param>
         /// <returns> The object which is stored in the cache by the <paramref name="key"/>. </returns>
-        object Get(string key);
+        CacheItem Get(string key);
+
+        /// <summary>
+        /// The method that changes value found in cache by the key <paramref name="key"/>.
+        /// </summary>
+        /// <param name="key"> The key of the value in the cache. </param>
+        /// <param name="value"> The new value of the object found by key <paramref name="key"/>. </param>
+        /// <param name="expirationTime"> The new expiration time of the object found by key <paramref name="key"/></param>
+        void ChangeValue(string key, object value, TimeSpan expirationTime);
+
+        /// <summary>
+        /// The method that removes expired objects from the cache.
+        /// </summary>
+        void ClearExpired();
     }
 }
